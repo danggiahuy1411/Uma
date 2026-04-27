@@ -41,11 +41,7 @@ private:
     Dice dice;
     vector<Horse> horses;
 public:
-    GamePlay(){
-        cout<<"Nhap so buoc toi da (so buoc ma con ngua so 7 can di de thang): ";
-        int maxStep;    cin>>maxStep;
-        cout<<"Nhap so buoc chenh lech giua 2 con ngua ke nhau: ";
-        int dif;    cin>>dif;
+    GamePlay(int maxStep, int dif){
         for(int i=2; i<13; i++){
             horses.push_back(Horse(0, maxStep-dif*abs(7-i), i));
         }
@@ -66,27 +62,105 @@ public:
     }
 };
 
-class Player{
-
+class Bookmaker{
+private:
+    double loiNhuan, tienVon;
+public:
+    Bookmaker(double _loiNhuan, double _tienVon):loiNhuan(_loiNhuan), tienVon(_tienVon){}
+    vector<double> getTiLeCuoc(vector<double> tiLeThang){
+        vector<double> TiLeCuoc(13, 0.0);
+        for(int i=2; i<13; i++){
+            if(tiLeThang[i]>0){
+                double tiLeAo=tiLeThang[i]*(1+loiNhuan);
+                if(tiLeAo>1)    tiLeAo=1;
+                TiLeCuoc[i]=1.0/tiLeAo;
+            }
+        }
+        return TiLeCuoc;
+    }
+    void thuTien(double tienCuoc){ tienVon+=tienCuoc; }
+    void traTien(double tienCuoc, double tiLeCuoc){ tienVon-=tienCuoc*tiLeCuoc; }
+    double getTienVon(){ return tienVon; }
 };
 
-class Statistic{
+class Player{
+private:
+    double tienVon;
 public:
-    void Test(){
-        cout<<"Nhap so luot choi: ";
-        int n;  cin>>n;
-        vector<int> winner(13);
-        GamePlay play;
-        for(int i=0; i<n; i++)
-            winner[play.run()]++;
-        cout<<endl<<"Ti le thang: ";
+    Player(double _tienVon):tienVon(_tienVon){}
+    int findBestBet(vector<double> TiLeThang, vector<double> TiLeCuoc){
+        int bestHorse=-1;
+        double maxKiVong=0;
+        for(int i=2; i<13; i++){
+            double kiVong=TiLeThang[i]*TiLeCuoc[i]-1;
+            if(kiVong>maxKiVong){
+                maxKiVong=kiVong;
+                bestHorse=i;
+            }
+        }
+        return bestHorse;
+    }
+    double datCuoc(double tiLeVon){
+        double betAmount=tienVon*tiLeVon;
+        tienVon-=betAmount;
+        return betAmount;
+    }
+    void nhanTien(double money){
+        tienVon+=money;
+    }
+    double getTienVon(){ return tienVon; }
+};
+
+class Bet{
+public:
+    void run(){
+        int maxStep, dif, nTest, nPlay;
+        cout << "Nhap khoang cach lon nhat de thang (khoang cach ngua so 7 can di de thang): ";
+        cin >> maxStep;
+        cout << "Nhap chenh lech khoang cach 2 con ngua ke nhau: ";
+        cin >> dif;
+        cout << "Nhap so van test: ";
+        cin >> nTest;
+        cout << "Nhap so van ca cuoc thuc te: ";
+        cin >> nPlay;
+        GamePlay test(maxStep, dif);
+        vector<int> winner(13, 0);
+        for(int i=0; i<nTest; i++)
+            winner[test.run()]++;
+        vector<double> TiLeThang(13, 0.0);
         for(int i=2; i<13; i++)
-            cout<<endl<<"No."<<i<<": "<<fixed<<setprecision(2)<<winner[i]*100.0/n<<" %";
+            TiLeThang[i]=double(winner[i])/nTest;
+        Bookmaker nhaCai(0.1, 100000);
+        Player nguoiChoi(1000);
+        vector<double> TiLeCuoc=nhaCai.getTiLeCuoc(TiLeThang);
+        GamePlay real(maxStep, dif);
+        TiLeCuoc[3]=50.0;
+        int betTarget=nguoiChoi.findBestBet(TiLeThang, TiLeCuoc);
+        if(betTarget!=-1)
+            cout<<"Ngua so "<<betTarget<<" co ki vong duong.";
+        else
+            cout<<"Khong co keo ngon, khong bet.";
+        for(int i=0; i<nPlay; i++){
+            if(betTarget!=-1 && nguoiChoi.getTienVon()>0){
+                double tienCuoc=nguoiChoi.datCuoc(0.05);
+                nhaCai.thuTien(tienCuoc);
+                int winner=real.run();
+                if(winner==betTarget){
+                    nguoiChoi.nhanTien(tienCuoc*TiLeCuoc[betTarget]);
+                    nhaCai.traTien(tienCuoc, TiLeCuoc[betTarget]);
+                }
+                else    nhaCai.thuTien(tienCuoc);
+            }
+        }
+        cout<<fixed<<setprecision(2);
+        cout<<endl<<"Ket qua sau "<<nPlay<<" cuoc dua."<<endl;
+        cout<<"Tien von nguoi choi: "<<nguoiChoi.getTienVon()<<endl;
+        cout<<"Tien von nha cai: "<<nhaCai.getTienVon();
     }
 };
 
 int main(){
-    Statistic test;
-    test.Test();
+    Bet test;
+    test.run();
     return 0;
 }
