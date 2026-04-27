@@ -42,8 +42,12 @@ private:
     vector<Horse> horses;
 public:
     GamePlay(){
+        cout<<"Nhap so buoc toi da (so buoc ma con ngua so 7 can di de thang): ";
+        int maxStep;    cin>>maxStep;
+        cout<<"Nhap so buoc chenh lech giua 2 con ngua ke nhau: ";
+        int dif;    cin>>dif;
         for(int i=2; i<13; i++){
-            horses.push_back(Horse(0, 13-2*abs(7-i), i));
+            horses.push_back(Horse(0, maxStep-dif*abs(7-i), i));
         }
     }
     void resetAll(){
