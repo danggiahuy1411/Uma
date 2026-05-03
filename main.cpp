@@ -67,7 +67,7 @@ private:
     double loiNhuan, tienVon;
 public:
     Bookmaker(double _loiNhuan, double _tienVon):loiNhuan(_loiNhuan), tienVon(_tienVon){}
-    vector<double> getTiLeCuoc(vector<double> tiLeThang){
+    vector<double> getTiLeCuoc(vector<double> tiLeThang, int error){
         vector<double> TiLeCuoc(13, 0.0);
         for(int i=2; i<13; i++){
             if(tiLeThang[i]>0){
@@ -76,6 +76,8 @@ public:
                 TiLeCuoc[i]=1.0/tiLeAo;
             }
         }
+        if(error)
+            TiLeCuoc[3]=(1.0/tiLeThang[3])*2.0;
         return TiLeCuoc;
     }
     void thuTien(double tienCuoc){ tienVon+=tienCuoc; }
@@ -114,7 +116,7 @@ public:
 class Bet{
 public:
     void run(){
-        int maxStep, dif, nTest, nPlay;
+        int maxStep, dif, nTest, nPlay, error;
         cout << "Nhap khoang cach lon nhat de thang (khoang cach ngua so 7 can di de thang): ";
         cin >> maxStep;
         cout << "Nhap chenh lech khoang cach 2 con ngua ke nhau: ";
@@ -123,6 +125,8 @@ public:
         cin >> nTest;
         cout << "Nhap so van ca cuoc thuc te: ";
         cin >> nPlay;
+        cout << "Nha cai loi ( 0 / 1 ): ";
+        cin >> error;
         GamePlay test(maxStep, dif);
         vector<int> winner(13, 0);
         for(int i=0; i<nTest; i++)
@@ -130,16 +134,17 @@ public:
         vector<double> TiLeThang(13, 0.0);
         for(int i=2; i<13; i++)
             TiLeThang[i]=double(winner[i])/nTest;
-        Bookmaker nhaCai(0.1, 100000);
+        Bookmaker nhaCai(0.1, 1000000);
         Player nguoiChoi(1000);
-        vector<double> TiLeCuoc=nhaCai.getTiLeCuoc(TiLeThang);
+        vector<double> TiLeCuoc=nhaCai.getTiLeCuoc(TiLeThang, error);
         GamePlay real(maxStep, dif);
-        TiLeCuoc[3]=50.0;
         int betTarget=nguoiChoi.findBestBet(TiLeThang, TiLeCuoc);
         if(betTarget!=-1)
             cout<<"Ngua so "<<betTarget<<" co ki vong duong.";
-        else
+        else{
             cout<<"Khong co keo ngon, khong bet.";
+            return;
+        }
         for(int i=0; i<nPlay; i++){
             if(betTarget!=-1 && nguoiChoi.getTienVon()>0){
                 double tienCuoc=nguoiChoi.datCuoc(0.05);
@@ -149,7 +154,6 @@ public:
                     nguoiChoi.nhanTien(tienCuoc*TiLeCuoc[betTarget]);
                     nhaCai.traTien(tienCuoc, TiLeCuoc[betTarget]);
                 }
-                else    nhaCai.thuTien(tienCuoc);
             }
         }
         cout<<fixed<<setprecision(2);
