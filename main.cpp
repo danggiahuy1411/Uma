@@ -76,8 +76,13 @@ public:
                 TiLeCuoc[i]=1.0/tiLeAo;
             }
         }
-        if(error)
-            TiLeCuoc[3]=(1.0/tiLeThang[3])*2.0;
+        if(error){
+            random_device rd;
+            mt19937 gen(rd());
+            uniform_int_distribution<> dist(2, 12);
+            int errorIdx = dist(gen);
+            TiLeCuoc[errorIdx]=(1.0/tiLeThang[errorIdx])*2.0;
+        }
         return TiLeCuoc;
     }
     void thuTien(double tienCuoc){ tienVon+=tienCuoc; }
@@ -86,11 +91,11 @@ public:
 };
 
 class Player{
-private:
+protected:
     double tienVon;
 public:
     Player(double _tienVon):tienVon(_tienVon){}
-    int findBestBet(vector<double> TiLeThang, vector<double> TiLeCuoc){
+    virtual int findBestBet(vector<double> TiLeThang, vector<double> TiLeCuoc){
         int bestHorse=-1;
         double maxKiVong=0;
         for(int i=2; i<13; i++){
@@ -102,15 +107,67 @@ public:
         }
         return bestHorse;
     }
-    double datCuoc(double tiLeVon){
-        double betAmount=tienVon*tiLeVon;
-        tienVon-=betAmount;
-        return betAmount;
-    }
+    virtual double datCuoc(bool)=0;
     void nhanTien(double money){
         tienVon+=money;
     }
     double getTienVon(){ return tienVon; }
+};
+
+class PercentPlayer : public Player{
+public:
+    PercentPlayer(double _tienVon):Player(_tienVon){}
+    double datCuoc(bool){
+        float tiLeVon=0.002;
+        double betAmount=tienVon*tiLeVon;
+        tienVon-=betAmount;
+        return betAmount;
+    }
+};
+
+class FiboPlayer : public Player{
+private:
+    double pre1=0, pre2=10;
+public:
+    FiboPlayer(double _tienVon):Player(_tienVon){}
+    double datCuoc(bool preWin){
+        if(!tienVon)    return 0;
+        double tienCuoc;
+        if(preWin){
+            pre1=0;
+            pre2=10;
+            tienCuoc=min(pre2, tienVon);
+            tienVon-=tienCuoc;
+            return tienCuoc;
+        }
+        double temp=pre2;
+        pre2+=pre1;
+        pre1=temp;
+        tienCuoc=min(pre2, tienVon);
+        tienVon-=tienCuoc;
+        return tienCuoc;
+    }
+};
+
+class DoublePlayer : public Player{
+private:
+    double pre=10;
+public:
+    DoublePlayer(double _tienVon):Player(_tienVon){}
+    double datCuoc(bool preWin){
+        if(!tienVon)    return 0;
+        double tienCuoc;
+        if(preWin){
+            pre=10;
+            tienCuoc=min(tienVon, pre);
+            tienVon-=tienCuoc;
+            return tienCuoc;
+        }
+        pre*=2;
+        tienCuoc=min(tienVon, pre);
+        tienVon-=tienCuoc;
+        return tienCuoc;
+    }
 };
 
 class Bet{
@@ -135,31 +192,73 @@ public:
         for(int i=2; i<13; i++)
             TiLeThang[i]=double(winner[i])/nTest;
         Bookmaker nhaCai(0.1, 1000000);
-        Player nguoiChoi(1000);
+        PercentPlayer nguoiChoiAnToan(10000);
+        FiboPlayer nguoiChoiFibo(10000);
+        DoublePlayer ngaDauGapDoiDo(10000);
         vector<double> TiLeCuoc=nhaCai.getTiLeCuoc(TiLeThang, error);
         GamePlay real(maxStep, dif);
-        int betTarget=nguoiChoi.findBestBet(TiLeThang, TiLeCuoc);
+        int betTarget=nguoiChoiAnToan.findBestBet(TiLeThang, TiLeCuoc);
         if(betTarget!=-1)
-            cout<<"Ngua so "<<betTarget<<" co ki vong duong.";
-        else{
-            cout<<"Khong co keo ngon, khong bet.";
-            return;
-        }
-        for(int i=0; i<nPlay; i++){
-            if(betTarget!=-1 && nguoiChoi.getTienVon()>0){
-                double tienCuoc=nguoiChoi.datCuoc(0.05);
+            cout<<"Ngua so "<<betTarget<<" co ki vong duong."<<endl;
+        else
+            cout<<"Khong co keo ngon, bet random."<<endl;
+        bool PercentWin=1;
+        bool FiboWin=1;
+        bool DoubleWin=1;
+        bool keoNgon=(betTarget!=-1 ? 1 : 0);
+        cout<<left<<setw(10)<<"Luot"<<setw(15)<<"Bet Target"<<setw(15)<<"Percent"<<setw(15)<<"Fibo"<<setw(15)<<"Double"<<endl;
+        int j;
+        for(j=0; j<nPlay; j++){
+            if(!keoNgon){
+                random_device rd;
+                mt19937 gen(rd());
+                uniform_int_distribution<> dist(2, 12);
+                betTarget = dist(gen);
+            }
+            int winner=real.run();
+            if(nguoiChoiAnToan.getTienVon()>0){
+                double tienCuoc=nguoiChoiAnToan.datCuoc(PercentWin);
                 nhaCai.thuTien(tienCuoc);
-                int winner=real.run();
                 if(winner==betTarget){
-                    nguoiChoi.nhanTien(tienCuoc*TiLeCuoc[betTarget]);
+                    nguoiChoiAnToan.nhanTien(tienCuoc*TiLeCuoc[betTarget]);
                     nhaCai.traTien(tienCuoc, TiLeCuoc[betTarget]);
+                    PercentWin=1;
+                }
+                else{
+                    PercentWin=0;
                 }
             }
+            if(nguoiChoiFibo.getTienVon()>0){
+                double tienCuoc=nguoiChoiFibo.datCuoc(FiboWin);
+                nhaCai.thuTien(tienCuoc);
+                if(winner==betTarget){
+                    nguoiChoiFibo.nhanTien(tienCuoc*TiLeCuoc[betTarget]);
+                    nhaCai.traTien(tienCuoc, TiLeCuoc[betTarget]);
+                    FiboWin=1;
+                }
+                else{
+                    FiboWin=0;
+                }
+            }
+            if(ngaDauGapDoiDo.getTienVon()>0){
+                double tienCuoc=ngaDauGapDoiDo.datCuoc(DoubleWin);
+                nhaCai.thuTien(tienCuoc);
+                if(winner==betTarget){
+                    ngaDauGapDoiDo.nhanTien(tienCuoc*TiLeCuoc[betTarget]);
+                    nhaCai.traTien(tienCuoc, TiLeCuoc[betTarget]);
+                    DoubleWin=1;
+                }
+                else{
+                    DoubleWin=0;
+                }
+            }
+            cout<<left<<setw(10)<<j+1<<setw(15)<<betTarget<<setw(15)<<fixed<<setprecision(1)
+            <<nguoiChoiAnToan.getTienVon()<<setw(15)
+            <<nguoiChoiFibo.getTienVon()<<setw(15)
+            <<ngaDauGapDoiDo.getTienVon()<<endl;
+            if(nhaCai.getTienVon()<=0)  break;
+            if(nguoiChoiAnToan.getTienVon()<=0 && nguoiChoiFibo.getTienVon()<=0 && ngaDauGapDoiDo.getTienVon()<=0)  break;
         }
-        cout<<fixed<<setprecision(2);
-        cout<<endl<<"Ket qua sau "<<nPlay<<" cuoc dua."<<endl;
-        cout<<"Tien von nguoi choi: "<<nguoiChoi.getTienVon()<<endl;
-        cout<<"Tien von nha cai: "<<nhaCai.getTienVon();
     }
 };
 
